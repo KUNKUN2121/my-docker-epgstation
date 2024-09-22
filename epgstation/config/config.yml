@@ -1,0 +1,287 @@
+port: 8888
+mirakurunPath: http://mirakurun:40772/
+
+# dbtype: sqlite
+# sqlite:
+#   extensions:
+#     - '/hoge/regexp.dylib'
+#   regexp: true
+
+dbtype: mysql
+mysql:
+    host: mysql
+    port: 3306
+    user: epgstation
+    password: epgstation
+    database: epgstation
+
+epgUpdateIntervalTime: 10
+
+conflictPriority: 1
+recPriority: 2
+
+recordedFormat: '%TITLE%_%SHORTYEAR%%MONTH%%DAY%-%HOUR%%MIN%@%HALF_WIDTH_CHNAME%'
+recordedFileExtension: .ts
+recorded:
+    - name: recorded
+      path: '%ROOT%/recorded'
+
+thumbnail: '%ROOT%/thumbnail'
+thumbnailSize: 480x270
+thumbnailPosition: 5
+
+ffmpeg: /usr/local/bin/ffmpeg
+ffprobe: /usr/local/bin/ffprobe
+
+encodeProcessNum: 4
+concurrentEncodeNum: 1
+encode:
+    - name: H264(vaapi)
+      cmd: '%NODE% %ROOT%/config/enc_vaapi.js'
+      suffix: .mp4
+      rate: 4.0
+    - name: H264(soft)
+      cmd: '%NODE% %ROOT%/config/enc_software.js'
+      suffix: .mp4
+      rate: 4.0
+    - name: H265(vaapi_hevc10b)
+      cmd: '%NODE% %ROOT%/config/enc_vaapi-hevc10bit.js'
+      suffix: .mp4
+      rate: 4.0
+    - name: H264(jlse+vaapi)
+      cmd: '%NODE% %ROOT%/config/jlse_vaapi.js'
+      suffix: .mp4
+      rate: 4.0
+    - name: H264(jlse+soft)
+      cmd: '%NODE% %ROOT%/config/jlse_software.js'
+      suffix: .mp4
+      rate: 4.0
+    - name: H265(jlse+vaapi-hevc10b)
+      cmd: '%NODE% %ROOT%/config/jlse_vaapi-hevc10bit.js'
+      suffix: .mp4
+      rate: 4.0
+
+urlscheme:
+    m2ts:
+        ios: vlc-x-callback://x-callback-url/stream?url=PROTOCOL://ADDRESS
+        android: intent://ADDRESS#Intent;package=org.videolan.vlc;type=video;scheme=PROTOCOL;end
+    video:
+        ios: infuse://x-callback-url/play?url=PROTOCOL://ADDRESS
+        android: intent://ADDRESS#Intent;package=com.mxtech.videoplayer.ad;type=video;scheme=PROTOCOL;end
+    download:
+        ios: vlc-x-callback://x-callback-url/download?url=PROTOCOL://ADDRESS&filename=FILENAME
+
+stream:
+    live:
+        ts:
+            m2ts:
+                - name: 無変換
+                - name: 1080p(vaapi-hevc10bit)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i pipe:0 -sn -threads 0 -c:a libopus -strict -2 -ar 48000 -b:a 64k -ac 2
+                      -c:v hevc_vaapi -profile:v 2 -vf deinterlace_vaapi,scale_vaapi=format=p010 -b:v 3M -minrate:v 3M -maxrate:v 3M -bufsize:v 10485760 -y -f mpegts pipe:1'
+                - name: 1080p(vaapi)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i pipe:0 -sn -threads 0 -compression_level 0 -c:a libopus -strict -2 -ar 48000 -b:a 64k -ac 2
+                      -c:v h264_vaapi -vf deinterlace_vaapi -b:v 3M -minrate:v 3M -maxrate:v 3M -bufsize:v 10485760 -y -f mpegts pipe:1'
+                - name: 720p(vaapi)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i pipe:0 -sn -threads 0 -compression_level 0 -c:a libopus -strict -2 -ar 48000 -b:a 48k -ac 2
+                      -c:v h264_vaapi -vf deinterlace_vaapi,scale_vaapi=h=720:w=-2 -b:v 2M -minrate:v 2M -maxrate:v 2M -bufsize:v 6291456 -aspect 16:9 -y -f mpegts pipe:1'
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -re -dual_mono_mode main -i pipe:0 -sn -threads 0 -c:a libopus -strict -2 -ar 48000 -b:a 48k -ac 2
+                      -c:v libx264 -vf yadif,scale=-2:720 -b:v 2000k -preset veryfast -y -f mpegts pipe:1'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -re -dual_mono_mode main -i pipe:0 -sn -threads 0 -c:a libopus -strict -2 -ar 48000 -b:a 40k -ac 2
+                      -c:v libx264 -vf yadif,scale=-2:480 -b:v 1200k -preset veryfast -y -f mpegts pipe:1'
+
+            m2tsll:
+                - name: 1080p(vaapi)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -f mpegts -analyzeduration 500000 -i pipe:0 -map 0 -c:s copy -c:d
+                      copy -ignore_unknown -fflags nobuffer -flags low_delay -max_delay 250000 -max_interleave_delta 1
+                      -threads 0 -compression_level 0 -c:a libfdk_aac -ar 48000 -b:a 96k -ac 2 -c:v h264_vaapi -flags +cgop -vf deinterlace_vaapi
+                      -b:v 3M -y -f mpegts pipe:1'
+                - name: 720p(vaapi)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -f mpegts -analyzeduration 500000 -i pipe:0 -map 0 -c:s copy -c:d
+                      copy -ignore_unknown -fflags nobuffer -flags low_delay -max_delay 250000 -max_interleave_delta 1
+                      -threads 0 -compression_level 0 -c:a libfdk_aac -ar 48000 -b:a 80k -ac 2 -c:v h264_vaapi -flags +cgop -vf deinterlace_vaapi,scale_vaapi=h=720:w=-2
+                      -b:v 2M -y -f mpegts pipe:1'
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -f mpegts -analyzeduration 500000 -i pipe:0 -map 0 -c:s copy -c:d
+                      copy -ignore_unknown -fflags nobuffer -flags low_delay -max_delay 250000 -max_interleave_delta 1
+                      -threads 0 -c:a libfdk_aac -ar 48000 -b:a 80k -ac 2 -c:v libx264 -flags +cgop -vf yadif,scale=-2:720
+                      -b:v 2000k -preset veryfast -y -f mpegts pipe:1'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -f mpegts -analyzeduration 500000 -i pipe:0 -map 0 -c:s copy -c:d
+                      copy -ignore_unknown -fflags nobuffer -flags low_delay -max_delay 250000 -max_interleave_delta 1
+                      -threads 0 -c:a libfdk_aac -ar 48000 -b:a 64k -ac 2 -c:v libx264 -flags +cgop -vf yadif,scale=-2:480
+                      -b:v 1200k -preset veryfast -y -f mpegts pipe:1'
+
+            webm:
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -re -dual_mono_mode main -i pipe:0 -sn -threads 3 -c:a libvorbis -ar 48000 -b:a 192k -ac
+                      2 -c:v libvpx-vp9 -vf yadif,scale=-2:720 -b:v 3000k -deadline realtime -speed 4 -cpu-used -8 -y -f
+                      webm pipe:1'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -re -dual_mono_mode main -i pipe:0 -sn -threads 2 -c:a libvorbis -ar 48000 -b:a 128k -ac
+                      2 -c:v libvpx-vp9 -vf yadif,scale=-2:480 -b:v 1500k -deadline realtime -speed 4 -cpu-used -8 -y -f
+                      webm pipe:1'
+
+            mp4:
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -re -dual_mono_mode main -i pipe:0 -sn -threads 0 -c:a aac -ar 48000 -b:a 192k -ac 2
+                      -c:v libx264 -vf yadif,scale=-2:720 -b:v 3000k -profile:v baseline -preset veryfast -tune
+                      fastdecode,zerolatency -movflags frag_keyframe+empty_moov+faststart+default_base_moof -y -f mp4
+                      pipe:1'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -re -dual_mono_mode main -i pipe:0 -sn -threads 0 -c:a aac -ar 48000 -b:a 128k -ac 2
+                      -c:v libx264 -vf yadif,scale=-2:480 -b:v 1500k -profile:v baseline -preset veryfast -tune
+                      fastdecode,zerolatency -movflags frag_keyframe+empty_moov+faststart+default_base_moof -y -f mp4
+                      pipe:1'
+
+            hls:
+                - name: 1080p(vaapi)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i pipe:0 -sn -threads 0 -compression_level 0 -map 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 17 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 96k -ac 2 -c:v h264_vaapi -vf format=nv12|vaapi,hwupload,deinterlace_vaapi -b:v 3M -minrate:v 3M -maxrate:v 3M -bufsize:v 10485760 -preset veryfast
+                      -flags +loop-global_header %OUTPUT%'
+                - name: 720p(vaapi)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i pipe:0 -sn -threads 0 -compression_level 0 -map 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 17 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 80k -ac 2 -c:v h264_vaapi -vf format=nv12|vaapi,hwupload,deinterlace_vaapi,scale_vaapi=h=720:w=-2 -b:v 2M -minrate:v 2M -maxrate:v 2M -bufsize:v 6291456 -aspect 16:9 -preset veryfast
+                      -flags +loop-global_header %OUTPUT%'
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -re -dual_mono_mode main -i pipe:0 -sn -map 0 -threads 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 17 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 80k -ac 2 -c:v libx264 -vf yadif,scale=-2:720 -b:v 2000k -preset veryfast
+                      -flags +loop-global_header %OUTPUT%'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -re -dual_mono_mode main -i pipe:0 -sn -map 0 -threads 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 17 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 64k -ac 2 -c:v libx264 -vf yadif,scale=-2:480 -b:v 1200k -preset veryfast
+                      -flags +loop-global_header %OUTPUT%'
+    recorded:
+        ts:
+            webm:
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -i pipe:0 -sn -threads 3 -c:a libvorbis -ar 48000 -b:a 192k -ac 2
+                      -c:v libvpx-vp9 -vf yadif,scale=-2:720 -b:v 3000k -deadline realtime -speed 4 -cpu-used -8 -y -f
+                      webm pipe:1'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -i pipe:0 -sn -threads 3 -c:a libvorbis -ar 48000 -b:a 128k -ac 2
+                      -c:v libvpx-vp9 -vf yadif,scale=-2:480 -b:v 1500k -deadline realtime -speed 4 -cpu-used -8 -y -f
+                      webm pipe:1'
+
+            mp4:
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -i pipe:0 -sn -threads 0 -c:a aac -ar 48000 -b:a 192k -ac 2 -c:v
+                      libx264 -vf yadif,scale=-2:720 -b:v 3000k -profile:v baseline -preset veryfast -tune
+                      fastdecode,zerolatency -movflags frag_keyframe+empty_moov+faststart+default_base_moof -y -f mp4
+                      pipe:1'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -i pipe:0 -sn -threads 0 -c:a aac -ar 48000 -b:a 128k -ac 2 -c:v
+                      libx264 -vf yadif,scale=-2:480 -b:v 1500k -profile:v baseline -preset veryfast -tune
+                      fastdecode,zerolatency -movflags frag_keyframe+empty_moov+faststart+default_base_moof -y -f mp4
+                      pipe:1'
+
+            hls:
+                - name: 1080p(vaapi)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i %INPUT% -sn -threads 0 -compression_level 0 -map 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 0 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 96k -ac 2 -c:v h264_vaapi -vf format=nv12|vaapi,hwupload,deinterlace_vaapi -b:v 3M -minrate:v 3M -maxrate:v 3M -bufsize:v 10485760 -preset veryfast
+                      -flags +loop-global_header %OUTPUT%'
+                - name: 720p(vaapi)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i %INPUT% -sn -threads 0 -compression_level 0 -map 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 0 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 80k -ac 2 -c:v h264_vaapi -vf format=nv12|vaapi,hwupload,deinterlace_vaapi,scale_vaapi=h=720:w=-2 -b:v 2M -minrate:v 2M -maxrate:v 2M -bufsize:v 6291456 -aspect 16:9 -preset veryfast
+                      -flags +loop-global_header %OUTPUT%'
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -i pipe:0 -sn -map 0 -threads 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 0 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 80k -ac 2 -c:v libx264 -vf yadif,scale=-2:720 -b:v 2000k -preset veryfast
+                      -flags +loop-global_header %OUTPUT%'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -i pipe:0 -sn -map 0 -threads 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 0 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 64k -ac 2 -c:v libx264 -vf yadif,scale=-2:480 -b:v 1200k -preset veryfast
+                      -flags +loop-global_header %OUTPUT%'
+
+        encoded:
+            webm:
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -ss %SS% -i %INPUT% -sn -threads 3 -c:a libvorbis -ar 48000 -b:a
+                      192k -ac 2 -c:v libvpx-vp9 -vf scale=-2:720 -b:v 3000k -deadline realtime -speed 4 -cpu-used -8 -y
+                      -f webm pipe:1'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -ss %SS% -i %INPUT% -sn -threads 3 -c:a libvorbis -ar 48000 -b:a
+                      128k -ac 2 -c:v libvpx-vp9 -vf scale=-2:480 -b:v 1500k -deadline realtime -speed 4 -cpu-used -8 -y
+                      -f webm pipe:1'
+
+            mp4:
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -ss %SS% -i %INPUT% -sn -threads 0 -c:a aac -ar 48000 -b:a 192k -ac
+                      2 -c:v libx264 -vf scale=-2:720 -b:v 3000k -profile:v baseline -preset veryfast -tune
+                      fastdecode,zerolatency -movflags frag_keyframe+empty_moov+faststart+default_base_moof -y -f mp4
+                      pipe:1'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -ss %SS% -i %INPUT% -sn -threads 0 -c:a aac -ar 48000 -b:a 128k -ac
+                      2 -c:v libx264 -vf scale=-2:480 -b:v 1500k -profile:v baseline -preset veryfast -tune
+                      fastdecode,zerolatency -movflags frag_keyframe+empty_moov+faststart+default_base_moof -y -f mp4
+                      pipe:1'
+
+            hls:
+                - name: 720p(vaapi)
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i %INPUT% -sn -threads 0 -compression_level 0 -map 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 0 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 80k -ac 2 -c:v h264_vaapi -vf format=nv12|vaapi,hwupload,deinterlace_vaapi,scale_vaapi=h=720:w=-2 -b:v 3M -minrate:v 3M -maxrate:v 3M -bufsize:v 6291456 -aspect 16:9 -preset veryfast
+                      -flags +loop-global_header %OUTPUT%'
+                - name: 720p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -ss %SS% -i %INPUT% -sn -threads 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 0 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 80k -ac 2 -c:v libx264 -vf scale=-2:720 -b:v 3000k -preset veryfast -flags
+                      +loop-global_header %OUTPUT%'
+                - name: 480p
+                  cmd:
+                      '%FFMPEG% -dual_mono_mode main -ss %SS% -i %INPUT% -sn -threads 0 -ignore_unknown
+                      -max_muxing_queue_size 1024 -f hls -hls_time 3 -hls_list_size 0 -hls_allow_cache 1
+                      -hls_segment_filename %streamFileDir%/stream%streamNum%-%09d.ts -hls_flags delete_segments -c:a
+                      libfdk_aac -ar 48000 -b:a 64k -ac 2 -c:v libx264 -vf scale=-2:480 -b:v 3000k -preset veryfast -flags
+                      +loop-global_header %OUTPUT%'
