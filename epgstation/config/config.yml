@@ -60,7 +60,10 @@ encode:
       cmd: '%NODE% %ROOT%/config/jlse_vaapi-hevc10bit.js'
       suffix: .mp4
       rate: 4.0
-
+    - name: H264(jlse+soft+chapter)
+      cmd: '%NODE% %ROOT%/config/jlse_chapter_software.js'
+      suffix: .mkv
+      rate: 4.0
 urlscheme:
     m2ts:
         ios: vlc-x-callback://x-callback-url/stream?url=PROTOCOL://ADDRESS
